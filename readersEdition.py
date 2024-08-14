@@ -5,44 +5,83 @@ from docx.shared import Inches, Pt, RGBColor
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from info import books_dict
 
 def page_formatting(document):
     sections = document.sections
     for section in sections:
-        section.top_margin = Inches(.5)
-        section.bottom_margin = Inches(.5)
-        section.left_margin = Inches(.4)
-        section.right_margin = Inches(.4)
-        section.footer_distance = Inches(0.2)
+        section.page_width = Inches(6)
+        section.page_height = Inches(9)
+        section.top_margin = Inches(0.75)
+        section.bottom_margin = Inches(0.75)
+        section.left_margin = Inches(0.75)
+        section.right_margin = Inches(0.75)
+        section.footer_distance = Inches(0.5)
+
 def add_horizontal_line(doc):
     p = doc.add_paragraph()
     run = p.add_run()
     hr = OxmlElement('w:pBdr')
     bottom = OxmlElement('w:bottom')
     bottom.set(qn('w:val'), 'single')
-    bottom.set(qn('w:sz'), '12')
-    bottom.set(qn('w:space'), '1')
-    bottom.set(qn('w:color'), 'auto')
+    bottom.set(qn('w:sz'), '8')  # Thinner line
+    bottom.set(qn('w:space'), '0')
+    bottom.set(qn('w:color'), '000000')  # Black color
     hr.append(bottom)
     p._element.get_or_add_pPr().append(hr)
-def add_content(document, books,chapters):
-    for book in books:
-        add_horizontal_line(document)
+def add_page_break(document):
+    paragraph = document.add_paragraph()
+    run = paragraph.add_run()
+    run.add_break()  # Adds a page break to the document
+
+def add_content(document):
+    for book_key in books_dict:
+        book = books_dict[book_key]
+        addParagraph(f"{book['name']}","book-title",document)
+        add_page_break(document)
         document.add_paragraph("")
-        for chapter in range(1, chapters[book] + 1):
-            path = f'bom-english/{book}/{chapter}.txt'
+        for chapter in range(1, book["numOfChapters"] + 1):
+            path = f'bom-english/{book_key}/{chapter}.txt'
             with open(path, 'r', encoding='utf-8') as file:
                 verses = [line.strip() for line in file.readlines() if line.strip()]
 
-            for verse in verses:
-                p = document.add_paragraph()
-                run = p.add_run(verse)
-                run.font.name = 'Calibri'
-                run.font.size = Pt(12)
-                p.paragraph_format.first_line_indent = Pt(24)
+             # Combine verses into paragraphs of 3 verses each
+            combined_verses = [ ' '.join(verses[i:i+3]) for i in range(0, len(verses), 3)]
+            
+            if(book["numOfChapters"]>1):
+                addParagraph(f"{book['name']} {chapter}","chapter-title",document) #Chapter 1
+            else:
+                addParagraph(f"{book['name']}","chapter-title",document)
+            for paragraph in combined_verses:
+                addParagraph(f"{paragraph}","normal",document)
 
+            add_page_break(document)
 
-            add_horizontal_line(document)
+def addParagraph(text,mode,document):
+    if mode=="normal":
+        p = document.add_paragraph()
+        run = p.add_run(text)
+        run.font.name = 'Cambria'  
+        run.font.size = Pt(12)  
+        p.paragraph_format.first_line_indent = Pt(24)
+        p.paragraph_format.line_spacing = Pt(14)  # Add line spacing for readability
+    if mode=="chapter-title":
+        p = document.add_paragraph()
+        run = p.add_run(text.upper())
+        run.font.name = 'Georgia'  
+        run.font.size = Pt(13)  
+        p.paragraph_format.first_line_indent = Pt(24)
+        p.paragraph_format.line_spacing = Pt(14)
+        p.alignment= WD_ALIGN_PARAGRAPH.CENTER
+    if mode=="book-title":
+        p = document.add_paragraph()
+        run = p.add_run(text.upper())
+        run.font.name = 'Lora'  
+        run.font.size = Pt(15)  
+        p.paragraph_format.first_line_indent = Pt(24)
+        p.paragraph_format.line_spacing = Pt(14)
+        p.alignment= WD_ALIGN_PARAGRAPH.CENTER
+
 def add_page_numbers(document):
     sections = document.sections
     for section in sections:
@@ -54,16 +93,10 @@ def add_page_numbers(document):
         field.set(qn('w:instr'), 'PAGE')
         run._element.append(field)
 
-
 def main():
-    books = ["1-nephi"]
-    chapters = {
-        "1-nephi": 22
-    }
-
     document = Document()
     page_formatting(document)
-    add_content(document,books,chapters)
+    add_content(document)
     add_page_numbers(document)
 
     document.save("readersEdition.docx")
